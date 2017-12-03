@@ -35,7 +35,9 @@ File loadDatabase()
 	try {
 		auto databaseFile = File(databasePath,"r+");
 		auto firstLine = databaseFile.readln();
-		enforceBugd(firstLine == databaseHeader,"Error: " ~ databasePath ~ "is not a dbug database");
+
+		//add "\n" becuaus readline add's one
+		enforceBugd(firstLine == (databaseHeader~"\n"),"Error: " ~ databasePath ~ " is not a dbug database");
 		return databaseFile;
 
 	} catch (ErrnoException) {
@@ -55,9 +57,9 @@ void setDatabase(string databasePath)
 	databasePath = absolutePath(databasePath);
 	try {
 		auto databasePathFile = File(expandTilde(databaseNamePath),"w");
-		databasePathFile.writeln(databasePath);
-	} catch (ErrnoException e) {
-		throw new BugdException("Error: unable to open " ~ databaseNamePath ~ " " ~ e.errno.to!string);
+		databasePathFile.write(databasePath);
+	} catch (ErrnoException) {
+		throw new BugdException("Error: unable to open " ~ databaseNamePath);
 	}
 }
 
