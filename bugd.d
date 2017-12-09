@@ -3,6 +3,9 @@ import std.file;
 import std.exception;
 import std.path;
 import std.conv;
+import std.string;
+import std.array;
+import std.algorithm;
 
 ///The file storing the path to the current database
 string databaseNamePath = "~/.bugd_database_name";
@@ -17,34 +20,22 @@ class BugdException : Exception
 
 alias enforceBugd = enforceEx!BugdException;
 
-
-/**
-	Load the active database
-	Returns: The active database
-*/
-File loadDatabase()
-{
-	string databasePath;
-	try {
-		auto databaseNameFile = File(expandTilde(databaseNamePath),"r");
-		databasePath = databaseNameFile.readln();
-	} catch(ErrnoException) {
-		throw new BugdException("Error: No current database");
+class DbEntry {
+this() {};
+this(string[] parts)
+	{
+		id = parts[0].to!uint;
+		state = parts[1];
+		name = parts[2];
+		description = parts[3];
 	}
-
-	try {
-		auto databaseFile = File(databasePath,"r+");
-		auto firstLine = databaseFile.readln();
-
-		//add "\n" becuaus readline add's one
-		enforceBugd(firstLine == (databaseHeader~"\n"),"Error: " ~ databasePath ~ " is not a dbug database");
-		return databaseFile;
-
-	} catch (ErrnoException) {
-		throw new BugdException("Error: unable to open " ~ databasePath);
-	}
-	assert(0);//we will either return or throw an exception before we get here
+	uint id;
+	string state;
+	string name;
+	string description;
 }
+
+
 
 
 /**
@@ -86,6 +77,79 @@ void initDatabase(string databasePath)
 	setDatabase(databasePath);
 
 }
+
+
+string dbLineToPlaintext(string line)
+{
+	line = line.replace("\n","\\n");
+	line = line.replace("\t","\\t");
+	return line;
+}
+
+string plaintextToDbLine(string text)
+{
+	text = text.replace("\\n","\n");
+	text = text.replace("\\t","\t");
+	return text;
+}
+
+unittest{
+	auto str1 = "This\nis\nsome\ntext";
+	auto str2 = "This\tis\tsome\t\text";
+	auto str3 = "More\n\tText";
+
+
+	assert(str1.dbLineToPlaintext().plaintextToDbLine());
+	assert(str2.dbLineToPlaintext().plaintextToDbLine());
+	assert(str3.dbLineToPlaintext().plaintextToDbLine());
+}
+
+DbEntry parseDbLine(string line)
+{
+	auto parts = array(splitter(line,'\t'));
+	enforceBugd(parts.length = 4,"Error: Malformed line: " ~ line);
+
+	parts[3] =  parts[3].dbLineToPlaintext;
+	return new DbEntry(parts);
+}
+
+/**
+	Load the active database
+	Returns: The active database
+*/
+DbEntry[] loadDatabase()
+{
+	string databasePath;
+	try {
+		auto databaseNameFile = File(expandTilde(databaseNamePath),"r");
+		databasePath = databaseNameFile.readln();
+	} catch(ErrnoException) {
+		throw new BugdException("Error: No current database");
+	}
+
+	File databaseFile;
+	try {
+		databaseFile = File(databasePath,"r+");
+		auto firstLine = databaseFile.readln();
+
+		//add "\n" becuaus readline add's one
+		enforceBugd(firstLine == (databaseHeader~"\n"),"Error: " ~ databasePath ~ " is not a dbug database");
+
+	} catch (ErrnoException) {
+		throw new BugdException("Error: unable to open " ~ databasePath);
+	}
+
+	auto database = appender!(DbEntry[]);
+	string line;
+	while ((line = databaseFile.readln()) !is null) {
+		database.put(line.parseDbLine);
+	}
+
+	return database.data;
+
+}
+
+
 
 ///prints out usage information
 void usage()
