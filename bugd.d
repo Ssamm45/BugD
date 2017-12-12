@@ -13,7 +13,7 @@ string databaseNamePath = "~/.bugd_database_name";
 ///The header of a dbug database, used to see if it is actually a dbug database
 string databaseHeader = "dbug_database";
 
-class BugdException : Exception 
+class BugdException : Exception
 {
 	mixin basicExceptionCtors;
 }
@@ -65,8 +65,6 @@ void setDatabase(string databasePath)
 */
 void initDatabase(string databasePath)
 {
-	if (exists(databasePath)) {
-	}
 
 	enforceBugd(!exists(databasePath),"Error: " ~ databasePath ~ " exists, unable to create database");
 
@@ -87,8 +85,8 @@ void initDatabase(string databasePath)
 */
 string dbLineToPlaintext(string line)
 {
-	line = line.replace("\n","\\n");
-	line = line.replace("\t","\\t");
+	line = line.replace("\\n","\n");
+	line = line.replace("\\t","\t");
 	return line;
 }
 
@@ -97,21 +95,28 @@ string dbLineToPlaintext(string line)
 */
 string plaintextToDbLine(string text)
 {
-	text = text.replace("\\n","\n");
-	text = text.replace("\\t","\t");
+	text = text.replace("\n","\\n");
+	text = text.replace("\t","\\t");
 	return text;
 }
 
 ///
-unittest{
-	auto str1 = "This\nis\nsome\ntext";
-	auto str2 = "This\tis\tsome\t\text";
-	auto str3 = "More\n\tText";
+unittest {
+	auto str1 = "This\\nis\\nsome\\ntext";
+	auto str2 = "This\\tis\\tsome\\ttext";
+	auto str3 = "More\\n\\tText";
 
+	auto str4 = "This\nis\nsome\ntext";
 
-	assert(str1.dbLineToPlaintext().plaintextToDbLine() == str1);
-	assert(str2.dbLineToPlaintext().plaintextToDbLine() == str2);
-	assert(str3.dbLineToPlaintext().plaintextToDbLine() == str3);
+	auto str5 = "This\tis\tsome\ttext";
+	auto str6 = "More\n\tText";
+
+	assert(str1.dbLineToPlaintext == str4);
+	assert(str2.dbLineToPlaintext == str5);
+	assert(str3.dbLineToPlaintext == str6);
+	assert(str1.dbLineToPlaintext.plaintextToDbLine == str1);
+	assert(str2.dbLineToPlaintext.plaintextToDbLine == str2);
+	assert(str3.dbLineToPlaintext.plaintextToDbLine == str3);
 }
 
 /**
@@ -125,7 +130,7 @@ DbEntry parseDbLine(string line)
 	auto parts = array(splitter(line,'\t'));
 	enforceBugd(parts.length = 4,"Error: Malformed line: " ~ line);
 
-	parts[3] =  parts[3].dbLineToPlaintext;
+	parts[3] = parts[3].dbLineToPlaintext;
 	return new DbEntry(parts);
 }
 
@@ -133,7 +138,7 @@ DbEntry parseDbLine(string line)
 	Load the active database
 	Returns: The active database
 */
-DbEntry[] loadDatabase()
+DbEntry[int] loadDatabase()
 {
 	string databasePath;
 	try {
@@ -155,13 +160,15 @@ DbEntry[] loadDatabase()
 		throw new BugdException("Error: unable to open " ~ databasePath);
 	}
 
-	auto database = appender!(DbEntry[]);
+	//auto database = appender!(DbEntry[]);
+	DbEntry[int] database;
 	string line;
 	while ((line = databaseFile.readln()) !is null) {
-		database.put(line.parseDbLine);
+		DbEntry entry = line.parseDbLine;
+		database[entry.id] = entry;
 	}
 
-	return database.data;
+	return database;
 
 }
 
@@ -176,6 +183,20 @@ void displayEntryList()
 	foreach (entry; data) {
 		writefln("%-7d%-17s%s",entry.id,entry.state,entry.name);
 	}
+}
+
+/**
+	Display a single entry
+*/
+void displayEntry(int id)
+{
+	auto database = loadDatabase(); auto entry = database[id];
+
+	writeln("ID: " ~ entry.id.to!string);
+	writeln("State: " ~ entry.state);
+	writeln("Name: " ~ entry.name);
+	writeln("Description:");
+	writeln(entry.description);
 }
 
 
@@ -205,13 +226,19 @@ int main(string[] args)
 			{
 				enforceBugd(args.length >= 3,"Error: set expects an argument");
 				setDatabase(args[2]);
-				loadDatabase();//see if we can load it
+				loadDatabase(); //see if we can load it
 				break;
 			}
 			case "list":
 			{
 				displayEntryList();
 			} break;
+			case "view":
+			{
+				enforceBugd(args.length >= 3,"Error: view expects an argument");
+				displayEntry(args[2].to!int);
+				break;
+			}
 			case "help":
 			default:
 			{
