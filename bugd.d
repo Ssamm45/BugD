@@ -20,6 +20,9 @@ class BugdException : Exception
 
 alias enforceBugd = enforceEx!BugdException;
 
+/**
+	A structure used to store a single entry
+*/
 class DbEntry {
 this() {};
 this(string[] parts)
@@ -79,6 +82,9 @@ void initDatabase(string databasePath)
 }
 
 
+/**
+	converts a description line from the database to plaintext
+*/
 string dbLineToPlaintext(string line)
 {
 	line = line.replace("\n","\\n");
@@ -86,6 +92,9 @@ string dbLineToPlaintext(string line)
 	return line;
 }
 
+/**
+	converts a plaintext line to a line sutible for entry to the database
+*/
 string plaintextToDbLine(string text)
 {
 	text = text.replace("\\n","\n");
@@ -93,17 +102,24 @@ string plaintextToDbLine(string text)
 	return text;
 }
 
+///
 unittest{
 	auto str1 = "This\nis\nsome\ntext";
 	auto str2 = "This\tis\tsome\t\text";
 	auto str3 = "More\n\tText";
 
 
-	assert(str1.dbLineToPlaintext().plaintextToDbLine());
-	assert(str2.dbLineToPlaintext().plaintextToDbLine());
-	assert(str3.dbLineToPlaintext().plaintextToDbLine());
+	assert(str1.dbLineToPlaintext().plaintextToDbLine() == str1);
+	assert(str2.dbLineToPlaintext().plaintextToDbLine() == str2);
+	assert(str3.dbLineToPlaintext().plaintextToDbLine() == str3);
 }
 
+/**
+	Takes a single entry line from a database and converts it to a DbEntry object
+	Returns: a DbEntry representation of the given line
+	Params:
+		line = the The line to parse
+*/
 DbEntry parseDbLine(string line)
 {
 	auto parts = array(splitter(line,'\t'));
