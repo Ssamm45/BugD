@@ -6,6 +6,7 @@ import std.conv;
 import std.string;
 import std.array;
 import std.algorithm;
+import std.random;
 
 ///The file storing the path to the current database
 string databaseNamePath = "~/.bugd_database_name";
@@ -107,7 +108,6 @@ unittest {
 	auto str3 = "More\\n\\tText";
 
 	auto str4 = "This\nis\nsome\ntext";
-
 	auto str5 = "This\tis\tsome\ttext";
 	auto str6 = "More\n\tText";
 
@@ -171,6 +171,20 @@ DbEntry[int] loadDatabase()
 	return database;
 
 }
+
+/**
+	creates a temporary file to pass to an external editor
+	Returns: A temporary file
+*/
+File createTmpFile()
+{
+	auto tmpdir = tempDir();
+	string filename = uniform.uint() ~ ".bugd";
+	string path = tmpdir ~ "/" ~ filename;
+	return File(path,"w");
+}
+
+
 
 /**
 	Loads the current database and lists out the entries
