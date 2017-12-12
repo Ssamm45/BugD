@@ -149,6 +149,18 @@ DbEntry[] loadDatabase()
 
 }
 
+/**
+	Loads the current database and lists out the entries
+*/
+void displayEntryList()
+{
+	auto data = loadDatabase();
+	writefln("%-7s%-17s%s","Id","State","name");
+	writeln("----------------------------");
+	foreach (entry; data) {
+		writefln("%-7d%-17s%s",entry.id,entry.state,entry.name);
+	}
+}
 
 
 ///prints out usage information
@@ -180,6 +192,10 @@ int main(string[] args)
 				loadDatabase();//see if we can load it
 				break;
 			}
+			case "list":
+			{
+				displayEntryList();
+			} break;
 			case "help":
 			default:
 			{
@@ -187,16 +203,9 @@ int main(string[] args)
 			}
 		}
 
-		
-
-
-
-
 	} catch (BugdException e) {
 		writeln(e.msg);
 		return 1;
 	}
 	return 0;
 }
-
-
