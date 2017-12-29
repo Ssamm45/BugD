@@ -7,6 +7,7 @@ import std.string;
 import std.array;
 import std.algorithm;
 import std.random;
+import core.sys.posix.stdlib;
 
 ///The file storing the path to the current database
 string databaseNamePath = "~/.bugd_database_name";
@@ -38,9 +39,6 @@ this(string[] parts)
 	string name;
 	string description;
 }
-
-
-
 
 /**
 	Sets the active database in databaseNamePath
@@ -174,16 +172,29 @@ DbEntry[int] loadDatabase()
 
 /**
 	creates a temporary file to pass to an external editor
+	currently only works posix systems due to use of mkstemp
 	Returns: A temporary file
 */
 File createTmpFile()
 {
-	auto tmpdir = tempDir();
-	string filename = uniform.uint() ~ ".bugd";
-	string path = tmpdir ~ "/" ~ filename;
-	return File(path,"w");
+	auto fnTemplate = "/tmp/bugd-XXXXXX";
+	char[] nameBuf = new char[fnTemplate.length+1];
+	nameBuf[0 .. fnTemplate.length] = fnTemplate[];
+	nameBuf[fnTemplate.length] = '\0';
+	auto fd = mkstemp(nameBuf.ptr);
+	return File(nameBuf.to!string,"w+");
 }
 
+///
+unittest
+{
+	auto file = createTmpFile();
+	auto filename = file.name;
+	writeln("Successfully created: " ~ filename);
+	file.close();
+	remove(filename);
+	
+}
 
 
 /**
