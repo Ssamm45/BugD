@@ -8,6 +8,7 @@ import std.array;
 import std.algorithm;
 import std.random;
 import core.sys.posix.stdlib;
+import std.process;
 
 ///The file storing the path to the current database
 string databaseNamePath = "~/.bugd_database_name";
@@ -196,6 +197,66 @@ unittest
 	
 }
 
+/**
+	Creates a file for editing an entry
+	Return: the file created
+	Params:
+		id = id of the entry
+		state = the state of the entry, can be empty
+		name = the name of the entry, can be empty
+		description = the description of the entry, can be empty
+*/
+string createEntryFile(int id,string state = "", string name="", string description="")
+{
+	auto entryFile=createTmpFile();
+	entryFile.writeln("Editing entry id: " ~ id.to!string);
+	entryFile.write("\n");
+	entryFile.writeln("State: " ~ state);
+	entryFile.writeln("Name: " ~ name);
+	entryFile.writeln("### Description Below ###");
+	auto fname = entryFile.name;
+	entryFile.close();
+	return fname;
+}
+
+/**
+	Try to find a text editor and open the given file
+	Currently only looks in environment variables VISUAL and EDITOR
+	Params:
+		filename = The file to try and open
+*/
+void launchEditor(string filename)
+{
+	string editor;
+	try {
+		editor = environment["VISUAL"];
+	} catch(Exception) {
+		try {
+			editor = environment["EDITOR"];
+		}
+		catch(Exception) {
+			throw new BugdException("Error: Unable to find an editor");
+		}
+	}
+
+
+	writeln(filename);
+	auto pid = spawnProcess([editor , filename]);
+	wait(pid);
+}
+
+
+/**
+	Creates a new bug entry
+*/
+void CreateEntry()
+{
+	auto tmpName = createEntryFile(5);
+	launchEditor(tmpName);
+	auto tmp = new File(tmpName);
+	auto buf = tmp.rawRead(new char[500]);
+	write(buf);
+}
 
 /**
 	Loads the current database and lists out the entries
@@ -262,6 +323,11 @@ int main(string[] args)
 			{
 				enforceBugd(args.length >= 3,"Error: view expects an argument");
 				displayEntry(args[2].to!int);
+				break;
+			}
+			case "new":
+			{
+				CreateEntry();
 				break;
 			}
 			case "help":
