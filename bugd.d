@@ -509,7 +509,7 @@ void usage()
 	//writeln("bugd <command> [<args>]");
 
 	write("Usage: " ~ import("doc/synopsis.txt"));
-	write("\n\n\n\n");
+	write("\n\n");
 	write(import("doc/usage.txt"));
 
 }
