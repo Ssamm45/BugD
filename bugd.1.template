@@ -1,7 +1,7 @@
 .\" Mangage for bugd
 .\" Please submit an issue or pull request if you notice any errors
 .\" https://github.com/ssamm45/bugd
-.TH man 1 "06 FEB 2018" "bugd man page"
+.TH man 1 "2018-02-06" "bugd man page"
 .SH NAME
 bugd \- simple bug/task manager
 .SH SYNOPSIS
