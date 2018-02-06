@@ -300,6 +300,37 @@ void updateDbEntry(DbEntry entry,uint id)
 	}
 }
 
+
+void deleteDbEntry(uint id)
+{
+	auto database = openDbFile("r");
+	scope (exit) database.close();
+	auto buf = DList!string();
+
+	while (!database.eof()) {
+		auto line = database.readln();
+
+		if (line.startsWith(id.to!string)) {
+		} else {
+			buf.insertBack(line);
+		}
+	}
+
+	auto dbname = database.name;
+	database.close();
+
+	try {
+		database = File(dbname,"w");
+	} catch (ErrnoException) {
+		throw new BugdException("Error: unable to open " ~ dbname);
+	}
+
+	database.writeln(databaseHeader);
+	foreach (line;buf) {
+		database.write(line);
+	}
+}
+
 /**
 	Load the active database
 	Returns: The active database
@@ -556,6 +587,12 @@ int main(string[] args)
 			{
 				enforceBugd(args.length >= 3,"Error: edit exepects an argument");
 				editEntry(args[2].to!int);
+				break;
+			}
+			case "delete":
+			{
+				enforceBugd(args.length >= 3,"Error: delete exepects an argument");
+				deleteDbEntry(args[2].to!int);
 				break;
 			}
 			case "help":
