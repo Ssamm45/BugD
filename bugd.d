@@ -15,7 +15,7 @@ import std.container;
 string databaseNamePath = "~/.bugd_database_name";
 
 ///The header of a dbug database, used to see if it is actually a dbug database
-string databaseHeader = "dbug_database";
+string databaseHeader = "bugd_database";
 
 class BugdException : Exception
 {
@@ -75,11 +75,32 @@ alias Database = DList!DbEntry;
 */
 DbEntry findEntry(Database db,uint id)
 {
-	foreach(entry;db)
-	{
+	foreach (entry;db) {
 		if (entry.id == id) return entry;
 	}
 	throw new BugdException("Unable to find entry: " ~ id.to!string);
+}
+
+
+/**
+	Finds the maximum id in the given database
+	Return: the max id
+	Params:
+		db = the database to look through
+*/
+uint maxId(Database db)
+{
+	if (db.empty()) return 0;
+	auto iterator = db.opSlice;
+
+	uint max = iterator.front.id;
+	iterator.popFront();
+
+	foreach (element; iterator) {
+		if (max < element.id) max = element.id;
+	}
+	return max;
+
 }
 
 /**
@@ -91,7 +112,7 @@ void setDatabase(string databasePath)
 {
 	databasePath = absolutePath(databasePath);
 	try {
-		auto databasePathFile = File(expandTilde(databaseNamePath),"w");
+		auto databasePathFile = File(expandTilde(databaseNamePath),"a");
 		databasePathFile.write(databasePath);
 	} catch (ErrnoException) {
 		throw new BugdException("Error: unable to open " ~ databaseNamePath);
@@ -175,16 +196,41 @@ DbEntry parseDbLine(string line)
 }
 
 /**
-	Load the active database
-	Returns: The active database
+	Creates a database entry line from a DbEntry object
+	Returns: a database line
+	Params:
+		entry = the entry to use
 */
-Database loadDatabase()
+string genDbLine(DbEntry entry)
 {
+	return format!("%s\t%s\t%s\t%s")(entry.id,entry.state,entry.name,entry.description.plaintextToDbLine);
+}
 
-	assert(is(typeof(binaryFun!"a < b"(DbEntry.init,DbEntry.init))));
+unittest
+{
+	auto db1 = new DbEntry(["9","state","name","desc"]);
+	auto line1 = genDbLine(db1);
+
+	auto db2 = new DbEntry(["144","more complicated state","more complicated name","desc\nwith tabs\n\tand newlines"]);
+	auto line2 = genDbLine(db2);
+
+	assert(line1 == "9\tstate\tname\tdesc");
+	assert(line2 == "144\tmore complicated state\tmore complicated name\tdesc\\nwith tabs\\n\\tand newlines");
+}
+
+
+/**
+	opens the current db file with the given mode
+	Returns: the database file
+	Params:
+		mode = the mode to open the file with
+*/
+File openDbFile(string mode)
+{
 	string databasePath;
 	try {
 		auto databaseNameFile = File(expandTilde(databaseNamePath),"r");
+		scope(exit) databaseNameFile.close();
 		databasePath = databaseNameFile.readln();
 	} catch(ErrnoException) {
 		throw new BugdException("Error: No current database");
@@ -192,7 +238,7 @@ Database loadDatabase()
 
 	File databaseFile;
 	try {
-		databaseFile = File(databasePath,"r+");
+		databaseFile = File(databasePath,mode);
 		auto firstLine = databaseFile.readln();
 
 		//add "\n" becuaus readline add's one
@@ -201,12 +247,36 @@ Database loadDatabase()
 	} catch (ErrnoException) {
 		throw new BugdException("Error: unable to open " ~ databasePath);
 	}
+	return databaseFile;
+}
+
+/**
+	Writes a db entry to the end of the db file
+	Params:
+		entry = the entry to write
+*/
+void appendToDb(DbEntry entry)
+{
+	auto dbfile = openDbFile("a+");
+	scope(exit) dbfile.close();
+
+	dbfile.writeln(genDbLine(entry));
+}
+
+/**
+	Load the active database
+	Returns: The active database
+*/
+Database loadDatabase()
+{
+	auto databaseFile = openDbFile("r");
+	scope(exit) databaseFile.close();
 
 	//auto database = appender!(DbEntry[]);
 	//DbEntry[int] database;
 	//DbEntry[] database = new RedBlackTree!DbEntry;
 	auto database = Database();
-	
+
 	string line;
 	while ((line = databaseFile.readln()) !is null) {
 		DbEntry entry = line.parseDbLine;
@@ -235,12 +305,12 @@ File createTmpFile()
 ///
 unittest
 {
-	auto file = createTmpFile();
+	auto file = createTmpFile();//throws exception on failure
 	auto filename = file.name;
-	writeln("Successfully created: " ~ filename);
+
 	file.close();
 	remove(filename);
-	
+
 }
 
 /**
@@ -256,13 +326,47 @@ string createEntryFile(int id,string state = "", string name="", string descript
 {
 	auto entryFile=createTmpFile();
 	entryFile.writeln("Editing entry id: " ~ id.to!string);
-	entryFile.write("\n");
+	entryFile.writeln("-------------------------");
 	entryFile.writeln("State: " ~ state);
 	entryFile.writeln("Name: " ~ name);
-	entryFile.writeln("### Description Below ###");
+	entryFile.writeln("--- Description Below ---");
 	auto fname = entryFile.name;
 	entryFile.close();
 	return fname;
+}
+
+
+/**
+	Parses an entry file after it has been filled out
+	Return: the DbEntry parsed from the file
+	Params:
+		filename = the file to parse
+*/
+DbEntry parseEntryFile(string filename)
+{
+	auto file = new File(filename);
+
+	file.readln();//Skip the id and blank line the user can't set the id throught the editor
+	file.readln();
+
+	auto stateln = file.readln();
+	enforceBugd(stateln.startsWith("State:"),"Error: state line is malformed");
+	auto state = strip(stateln[count("State:") .. $]);
+
+	auto nameln = file.readln();
+	enforceBugd(nameln.startsWith("Name: "),"Error: name line is malformed");
+	auto name = strip(nameln[count("Name: ") .. $]);
+
+	file.readln();//skip the Description line
+
+	string desc;
+	while (!file.eof) {
+		desc ~= file.readln();
+	}
+	desc = strip(desc);
+	desc = desc;
+
+	return new DbEntry(["0",state,name,desc]);
 }
 
 /**
@@ -286,7 +390,6 @@ void launchEditor(string filename)
 	}
 
 
-	writeln(filename);
 	auto pid = spawnProcess([editor , filename]);
 	wait(pid);
 }
@@ -308,15 +411,18 @@ void displayEntryList()
 /**
 	Creates a new bug entry
 */
-void CreateEntry()
+void createEntry()
 {
 	auto database = loadDatabase();
 
-	auto tmpName = createEntryFile(5);
+	auto newId = database.maxId() + 1;
+	auto tmpName = createEntryFile(newId);
 	launchEditor(tmpName);
-	auto tmp = new File(tmpName);
-	auto buf = tmp.rawRead(new char[500]);
-	write(buf);
+
+	auto entry = parseEntryFile(tmpName);
+	entry.id = newId;
+
+	appendToDb(entry);
 }
 
 
@@ -334,7 +440,8 @@ void displayEntry(int id)
 	writeln("ID: " ~ entry.id.to!string);
 	writeln("State: " ~ entry.state);
 	writeln("Name: " ~ entry.name);
-	writeln("Description:\n");
+	writeln("Description:");
+	writeln("-----------------");
 	write(entry.description);
 }
 
@@ -380,7 +487,7 @@ int main(string[] args)
 			}
 			case "new":
 			{
-				CreateEntry();
+				createEntry();
 				break;
 			}
 			case "help":
