@@ -9,6 +9,7 @@ import std.algorithm;
 import std.random;
 import core.sys.posix.stdlib;
 import std.process;
+import std.container;
 
 ///The file storing the path to the current database
 string databaseNamePath = "~/.bugd_database_name";
@@ -27,18 +28,58 @@ alias enforceBugd = enforceEx!BugdException;
 	A structure used to store a single entry
 */
 class DbEntry {
-this() {};
-this(string[] parts)
+	this() {};
+	this(uint nid)
+	{
+		id = nid;
+	}
+	this(string[] parts)
 	{
 		id = parts[0].to!uint;
 		state = parts[1];
 		name = parts[2];
 		description = parts[3];
 	}
+
+	bool opEquals(ref const DbEntry rhs) 
+	{
+		return (this.id == rhs.id);
+	}
+
+	bool opEquals(ref const uint rhs)
+	{
+		return (this.id == rhs);
+	}
+
+	alias opCmp = Object.opCmp;
+	int opCmp(ref const DbEntry rhs)
+	{
+		return (this.id - rhs.id);
+	}
+
+
 	uint id;
 	string state;
 	string name;
 	string description;
+}
+
+alias Database = DList!DbEntry;
+
+/**
+	Searches for the entry with the given ID in the database, throws a BugdException if the entry is not found
+	Return: The entry searched for
+	Params:
+		db = the database to look through
+		id = the id to look for
+*/
+DbEntry findEntry(Database db,uint id)
+{
+	foreach(entry;db)
+	{
+		if (entry.id == id) return entry;
+	}
+	throw new BugdException("Unable to find entry: " ~ id.to!string);
 }
 
 /**
@@ -137,8 +178,10 @@ DbEntry parseDbLine(string line)
 	Load the active database
 	Returns: The active database
 */
-DbEntry[int] loadDatabase()
+Database loadDatabase()
 {
+
+	assert(is(typeof(binaryFun!"a < b"(DbEntry.init,DbEntry.init))));
 	string databasePath;
 	try {
 		auto databaseNameFile = File(expandTilde(databaseNamePath),"r");
@@ -160,11 +203,14 @@ DbEntry[int] loadDatabase()
 	}
 
 	//auto database = appender!(DbEntry[]);
-	DbEntry[int] database;
+	//DbEntry[int] database;
+	//DbEntry[] database = new RedBlackTree!DbEntry;
+	auto database = Database();
+	
 	string line;
 	while ((line = databaseFile.readln()) !is null) {
 		DbEntry entry = line.parseDbLine;
-		database[entry.id] = entry;
+		database.insertBack(entry);
 	}
 
 	return database;
@@ -245,19 +291,6 @@ void launchEditor(string filename)
 	wait(pid);
 }
 
-
-/**
-	Creates a new bug entry
-*/
-void CreateEntry()
-{
-	auto tmpName = createEntryFile(5);
-	launchEditor(tmpName);
-	auto tmp = new File(tmpName);
-	auto buf = tmp.rawRead(new char[500]);
-	write(buf);
-}
-
 /**
 	Loads the current database and lists out the entries
 */
@@ -271,18 +304,38 @@ void displayEntryList()
 	}
 }
 
+
+/**
+	Creates a new bug entry
+*/
+void CreateEntry()
+{
+	auto database = loadDatabase();
+
+	auto tmpName = createEntryFile(5);
+	launchEditor(tmpName);
+	auto tmp = new File(tmpName);
+	auto buf = tmp.rawRead(new char[500]);
+	write(buf);
+}
+
+
 /**
 	Display a single entry
+	Params:
+		id = the entry to display
 */
 void displayEntry(int id)
 {
-	auto database = loadDatabase(); auto entry = database[id];
+	auto database = loadDatabase();
+
+	auto entry = database.findEntry(id);
 
 	writeln("ID: " ~ entry.id.to!string);
 	writeln("State: " ~ entry.state);
 	writeln("Name: " ~ entry.name);
-	writeln("Description:");
-	writeln(entry.description);
+	writeln("Description:\n");
+	write(entry.description);
 }
 
 
