@@ -1,0 +1,1 @@
+bugd <command> [<args>]

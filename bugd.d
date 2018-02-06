@@ -506,7 +506,12 @@ void displayEntry(int id)
 ///prints out usage information
 void usage()
 {
-	writeln("bugd <command> [<args>]");
+	//writeln("bugd <command> [<args>]");
+
+	write("Usage: " ~ import("doc/synopsis.txt"));
+	write("\n\n\n\n");
+	write(import("doc/usage.txt"));
+
 }
 
 int main(string[] args)
