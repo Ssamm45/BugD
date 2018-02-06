@@ -112,7 +112,7 @@ void setDatabase(string databasePath)
 {
 	databasePath = absolutePath(databasePath);
 	try {
-		auto databasePathFile = File(expandTilde(databaseNamePath),"a");
+		auto databasePathFile = File(expandTilde(databaseNamePath),"w");
 		databasePathFile.write(databasePath);
 	} catch (ErrnoException) {
 		throw new BugdException("Error: unable to open " ~ databaseNamePath);
@@ -261,6 +261,43 @@ void appendToDb(DbEntry entry)
 	scope(exit) dbfile.close();
 
 	dbfile.writeln(genDbLine(entry));
+}
+
+/**
+	Updates an entry in the database
+	Params:
+		entry = what to update the entry with
+		id = which entry to update
+*/
+void updateDbEntry(DbEntry entry,uint id)
+{
+	auto database = openDbFile("r");
+	scope (exit) database.close();
+	auto buf = DList!string();
+
+	while (!database.eof()) {
+		auto line = database.readln();
+
+		if (line.startsWith(id.to!string)) {
+			buf.insertBack(genDbLine(entry));
+		} else {
+			buf.insertBack(line);
+		}
+	}
+
+	auto dbname = database.name;
+	database.close();
+
+	try {
+		database = File(dbname,"w");
+	} catch (ErrnoException) {
+		throw new BugdException("Error: unable to open " ~ dbname);
+	}
+
+	database.writeln(databaseHeader);
+	foreach (line;buf) {
+		database.write(line);
+	}
 }
 
 /**
@@ -420,9 +457,29 @@ void createEntry()
 	launchEditor(tmpName);
 
 	auto entry = parseEntryFile(tmpName);
+	remove(tmpName);
 	entry.id = newId;
 
 	appendToDb(entry);
+}
+
+/**
+	edits an entry and saves it back to the database
+	Params:
+		id = the entry to edit
+*/
+void editEntry(uint id)
+{
+	auto database = loadDatabase();
+	auto entry = database.findEntry(id);
+
+	string tmpName = createEntryFile(entry.id,entry.state,entry.name,entry.description);
+	launchEditor(tmpName);
+	entry = parseEntryFile(tmpName);
+	entry.id = id;
+	remove(tmpName);
+
+	updateDbEntry(entry,id);
 }
 
 
@@ -479,15 +536,21 @@ int main(string[] args)
 			{
 				displayEntryList();
 			} break;
+			case "new":
+			{
+				createEntry();
+				break;
+			}
 			case "view":
 			{
 				enforceBugd(args.length >= 3,"Error: view expects an argument");
 				displayEntry(args[2].to!int);
 				break;
 			}
-			case "new":
+			case "edit":
 			{
-				createEntry();
+				enforceBugd(args.length >= 3,"Error: edit exepects an argument");
+				editEntry(args[2].to!int);
 				break;
 			}
 			case "help":
