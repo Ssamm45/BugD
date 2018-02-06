@@ -1,0 +1,14 @@
+.\" Mangage for bugd
+.\" Please submit an issue or pull request if you notice any errors
+.\" https://github.com/ssamm45/bugd
+.TH man 1 "06 FEB 2018" "bugd man page"
+.SH NAME
+bugd \- simple bug/task manager
+.SH SYNOPSIS
+<synopsis>
+.SH DESCRIPTION
+bugd is a simple program written in the D programming language for managing tasks for a project
+.SH OPTIONS
+<usage>
+.SH BUGS
+To report a bug or see the status of known bugs see the github issues page https://github.com/ssamm45/bugd/issues
