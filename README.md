@@ -1,7 +1,7 @@
 # BugD
 Simple bug and TODO tracker
 
-#Compiling
+# Compiling
 To compile run:
 
     $ ./make && sudo make install
