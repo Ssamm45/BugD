@@ -15,7 +15,7 @@ import std.container.binaryheap;
 ///The file storing the path to the current database
 static immutable string databaseNamePath = "~/.bugd_database_name";
 
-static immutable string versionNum = "1.0.0";
+static immutable string versionNum = "1.0.1";
 
 ///The header of a dbug database, used to see if it is actually a dbug database
 static immutable string databaseHeader = "bugd_database v" ~ versionNum;
@@ -295,7 +295,7 @@ void updateDbEntry(DbEntry entry,uint id)
 		auto line = database.readln();
 
 		if (line.startsWith(id.to!string)) {
-			buf.insertBack(genDbLine(entry));
+			buf.insertBack(genDbLine(entry)~"\n");
 		} else {
 			buf.insertBack(line);
 		}
@@ -493,10 +493,10 @@ void launchEditor(string filename)
 void displayEntryList()
 {
 	auto data = loadDatabase();
-	writefln("%-7s%-7s%-17s%s","Id","Priority","State","name");
-	writeln("----------------------------");
+	writefln("%-7s%-9s%-17s%s","Id","Priority","State","name");
+	writeln("-----------------------------------------");
 	foreach (entry; data) {
-		writefln("%-7d%-7d%-17s%s",entry.id,entry.priority,entry.state,entry.name);
+		writefln("%-7d%-9d%-17s%s",entry.id,entry.priority,entry.state,entry.name);
 	}
 }
 
