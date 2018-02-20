@@ -10,12 +10,21 @@ import std.random;
 import core.sys.posix.stdlib;
 import std.process;
 import std.container;
+import std.container.binaryheap;
 
 ///The file storing the path to the current database
-string databaseNamePath = "~/.bugd_database_name";
+static immutable string databaseNamePath = "~/.bugd_database_name";
+
+static immutable string versionNum = "1.0.0";
 
 ///The header of a dbug database, used to see if it is actually a dbug database
-string databaseHeader = "bugd_database";
+static immutable string databaseHeader = "bugd_database v" ~ versionNum;
+
+
+///the headers for the lines of the entry files
+static immutable priorityHeader = "Priority:";
+static immutable stateHeader = "State:";
+static immutable nameHeader = "Name:";
 
 class BugdException : Exception
 {
@@ -36,35 +45,37 @@ class DbEntry {
 	this(string[] parts)
 	{
 		id = parts[0].to!uint;
-		state = parts[1];
-		name = parts[2];
-		description = parts[3];
+		priority = parts[1].to!int;
+		state = parts[2];
+		name = parts[3];
+		description = parts[4];
 	}
 
 	bool opEquals(ref const DbEntry rhs) 
 	{
-		return (this.id == rhs.id);
+		return (this.priority == rhs.priority);
 	}
 
 	bool opEquals(ref const uint rhs)
 	{
-		return (this.id == rhs);
+		return (this.priority == rhs);
 	}
 
 	alias opCmp = Object.opCmp;
 	int opCmp(ref const DbEntry rhs)
 	{
-		return (this.id - rhs.id);
+		return (this.priority - rhs.priority);
 	}
 
 
 	uint id;
+	int priority;
 	string state;
 	string name;
 	string description;
 }
 
-alias Database = DList!DbEntry;
+alias Database = BinaryHeap!(DbEntry[],"a > b");
 
 /**
 	Searches for the entry with the given ID in the database, throws a BugdException if the entry is not found
@@ -91,12 +102,12 @@ DbEntry findEntry(Database db,uint id)
 uint maxId(Database db)
 {
 	if (db.empty()) return 0;
-	auto iterator = db.opSlice;
+	//auto iterator = db.opSlice;
 
-	uint max = iterator.front.id;
-	iterator.popFront();
+	uint max = db.front.id;
+	//iterator.popFront();
 
-	foreach (element; iterator) {
+	foreach (element; db) {
 		if (max < element.id) max = element.id;
 	}
 	return max;
@@ -189,9 +200,9 @@ unittest {
 DbEntry parseDbLine(string line)
 {
 	auto parts = array(splitter(line,'\t'));
-	enforceBugd(parts.length = 4,"Error: Malformed line: " ~ line);
+	enforceBugd(parts.length = 5,"Error: Malformed line: " ~ line);
 
-	parts[3] = parts[3].dbLineToPlaintext;
+	parts[4] = parts[4].dbLineToPlaintext;
 	return new DbEntry(parts);
 }
 
@@ -203,19 +214,24 @@ DbEntry parseDbLine(string line)
 */
 string genDbLine(DbEntry entry)
 {
-	return format!("%s\t%s\t%s\t%s")(entry.id,entry.state,entry.name,entry.description.plaintextToDbLine);
+	return format!("%s\t%s\t%s\t%s\t%s")(entry.id,entry.priority,entry.state,entry.name,entry.description.plaintextToDbLine);
 }
 
 unittest
 {
-	auto db1 = new DbEntry(["9","state","name","desc"]);
+	auto db1 = new DbEntry(["9","4","state","name","desc"]);
 	auto line1 = genDbLine(db1);
 
-	auto db2 = new DbEntry(["144","more complicated state","more complicated name","desc\nwith tabs\n\tand newlines"]);
+	auto db2 = new DbEntry(["144","-5","more complicated state","more complicated name","desc\nwith tabs\n\tand newlines"]);
 	auto line2 = genDbLine(db2);
 
-	assert(line1 == "9\tstate\tname\tdesc");
-	assert(line2 == "144\tmore complicated state\tmore complicated name\tdesc\\nwith tabs\\n\\tand newlines");
+	string testDbLine1 = "9\t4\tstate\tname\tdesc";
+	string testDbLine2 = "144\t-5\tmore complicated state\tmore complicated name\tdesc\\nwith tabs\\n\\tand newlines";
+
+	assert(line1 == testDbLine1);
+	assert(line2 == testDbLine2);
+	assert(genDbLine(parseDbLine(testDbLine1)) = testDbLine1);
+	assert(genDbLine(parseDbLine(testDbLine2)) = testDbLine2);
 }
 
 
@@ -343,12 +359,13 @@ Database loadDatabase()
 	//auto database = appender!(DbEntry[]);
 	//DbEntry[int] database;
 	//DbEntry[] database = new RedBlackTree!DbEntry;
-	auto database = Database();
+	DbEntry[] store;
+	auto database = heapify!"a > b"(store);
 
 	string line;
 	while ((line = databaseFile.readln()) !is null) {
 		DbEntry entry = line.parseDbLine;
-		database.insertBack(entry);
+		database.insert(entry);
 	}
 
 	return database;
@@ -386,22 +403,25 @@ unittest
 	Return: the file created
 	Params:
 		id = id of the entry
+		priority = the priorty of the entry
 		state = the state of the entry, can be empty
 		name = the name of the entry, can be empty
 		description = the description of the entry, can be empty
 */
-string createEntryFile(int id,string state = "", string name="", string description="")
+string createEntryFile(uint id,int priority=1,string state = "", string name="", string description="")
 {
 	auto entryFile=createTmpFile();
 	entryFile.writeln("Editing entry id: " ~ id.to!string);
 	entryFile.writeln("-------------------------");
-	entryFile.writeln("State: " ~ state);
-	entryFile.writeln("Name: " ~ name);
+	entryFile.writeln(priorityHeader ~ " " ~ priority.to!string);
+	entryFile.writeln(stateHeader ~ " " ~ state);
+	entryFile.writeln(nameHeader ~ " " ~ name);
 	entryFile.writeln("--- Description Below ---");
 	auto fname = entryFile.name;
 	entryFile.close();
 	return fname;
 }
+
 
 
 /**
@@ -417,13 +437,18 @@ DbEntry parseEntryFile(string filename)
 	file.readln();//Skip the id and blank line the user can't set the id throught the editor
 	file.readln();
 
+
+	auto priorityln = file.readln();
+	enforceBugd(priorityln.startsWith(priorityHeader),"Error: priority line is malformed");
+	auto priority = strip(priorityln[count(priorityHeader) .. $]);//keep as string, DbEntry constructor will convert to int
+
 	auto stateln = file.readln();
-	enforceBugd(stateln.startsWith("State:"),"Error: state line is malformed");
-	auto state = strip(stateln[count("State:") .. $]);
+	enforceBugd(stateln.startsWith(stateHeader),"Error: state line is malformed");
+	auto state = strip(stateln[count(stateHeader) .. $]);
 
 	auto nameln = file.readln();
-	enforceBugd(nameln.startsWith("Name: "),"Error: name line is malformed");
-	auto name = strip(nameln[count("Name: ") .. $]);
+	enforceBugd(nameln.startsWith(nameHeader),"Error: name line is malformed");
+	auto name = strip(nameln[count(nameHeader) .. $]);
 
 	file.readln();//skip the Description line
 
@@ -434,7 +459,7 @@ DbEntry parseEntryFile(string filename)
 	desc = strip(desc);
 	desc = desc;
 
-	return new DbEntry(["0",state,name,desc]);
+	return new DbEntry(["0",priority,state,name,desc]);
 }
 
 /**
@@ -468,10 +493,10 @@ void launchEditor(string filename)
 void displayEntryList()
 {
 	auto data = loadDatabase();
-	writefln("%-7s%-17s%s","Id","State","name");
+	writefln("%-7s%-7s%-17s%s","Id","Priority","State","name");
 	writeln("----------------------------");
 	foreach (entry; data) {
-		writefln("%-7d%-17s%s",entry.id,entry.state,entry.name);
+		writefln("%-7d%-7d%-17s%s",entry.id,entry.priority,entry.state,entry.name);
 	}
 }
 
@@ -504,7 +529,7 @@ void editEntry(uint id)
 	auto database = loadDatabase();
 	auto entry = database.findEntry(id);
 
-	string tmpName = createEntryFile(entry.id,entry.state,entry.name,entry.description);
+	string tmpName = createEntryFile(entry.id,entry.priority,entry.state,entry.name,entry.description);
 	launchEditor(tmpName);
 	entry = parseEntryFile(tmpName);
 	entry.id = id;
@@ -526,6 +551,7 @@ void displayEntry(int id)
 	auto entry = database.findEntry(id);
 
 	writeln("ID: " ~ entry.id.to!string);
+	writeln("Priority: " ~ entry.priority.to!string);
 	writeln("State: " ~ entry.state);
 	writeln("Name: " ~ entry.name);
 	writeln("Description:");
