@@ -1,7 +1,5 @@
-
 DCMP:=ldc
 PREFIX:=/usr/local
-
 
 
 .PHONY: all man install clean
@@ -10,8 +8,8 @@ all: bugd man
 man: bugd.1
 
 install: bugd man
-	install -D -m 755 ./bugd $(PREFIX)/bin/
-	install -D ./bugd.1 $(PREFIX)/man/man1/
+	install -D -m 755 ./bugd $(PREFIX)/bin/bugd
+	install -D ./bugd.1 $(PREFIX)/man/man1/bugd.1
 
 clean:
 	rm -f bugd bugd.1 bugd.1.usage bugd.o
