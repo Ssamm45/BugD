@@ -16,7 +16,7 @@ import std.container.binaryheap;
 static immutable string databaseNamePath = "~/.bugd_database_name";
 
 ///The current version of bugd
-static immutable string versionNum = "1.0.3";
+static immutable string versionNum = "1.0.4";
 
 ///The oldest version of bugd that has compatable databases
 static immutable string oldestCompatible = "1.0.2";
@@ -191,6 +191,12 @@ void setDatabase(string databasePath)
 }
 
 
+void printCurrentDatabase()
+{
+	writeln(getCurrentDatabase());
+}
+
+
 /**
 	creates a new database and sets it as the active datbase
 	Params:
@@ -296,6 +302,24 @@ unittest
 
 
 /**
+	Gets the current database path
+	Return: the path to the current database
+*/
+string getCurrentDatabase()
+{
+	
+	try {
+		auto databaseNameFile = File(expandTilde(databaseNamePath),"r");
+		scope(exit) databaseNameFile.close();
+		string databasePath = databaseNameFile.readln().strip();
+		return databasePath;
+	} catch(ErrnoException) {
+		throw new BugdException("Error: No current database");
+	}
+	assert(0);
+}
+
+/**
 	opens the current db file with the given mode
 	Returns: the database file
 	Params:
@@ -303,14 +327,7 @@ unittest
 */
 File openDbFile(string mode)
 {
-	string databasePath;
-	try {
-		auto databaseNameFile = File(expandTilde(databaseNamePath),"r");
-		scope(exit) databaseNameFile.close();
-		databasePath = databaseNameFile.readln();
-	} catch(ErrnoException) {
-		throw new BugdException("Error: No current database");
-	}
+	string databasePath = getCurrentDatabase();
 
 	File databaseFile;
 	try {
@@ -655,6 +672,10 @@ int main(string[] args)
 				loadDatabase(); //see if we can load it
 				break;
 			}
+			case "current":
+			{
+				printCurrentDatabase();
+			} break;
 			case "list":
 			{
 				displayEntryList();

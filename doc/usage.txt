@@ -1,6 +1,7 @@
 Manage the current database
 	init <filename>       Creates a new database named <filename>
 	set <filename>        Sets the database to <filename>
+	current               Prints out the path of the current database
 	list                  Lists all of the entries in the current database
 
 Edit entries in the database
