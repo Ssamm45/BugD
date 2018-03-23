@@ -15,11 +15,14 @@ import std.container.binaryheap;
 ///The file storing the path to the current database
 static immutable string databaseNamePath = "~/.bugd_database_name";
 
-static immutable string versionNum = "1.0.2";
+///The current version of bugd
+static immutable string versionNum = "1.0.3";
+
+///The oldest version of bugd that has compatable databases
+static immutable string oldestCompatible = "1.0.2";
 
 ///The header of a dbug database, used to see if it is actually a dbug database
-static immutable string databaseHeader = "bugd_database v" ~ versionNum;
-
+static immutable string databaseHeader = "bugd_database";
 
 ///the headers for the lines of the entry files
 static immutable priorityHeader = "Priority:";
@@ -78,6 +81,64 @@ class DbEntry {
 alias Database = BinaryHeap!(DbEntry[],"a > b");
 
 /**
+	Splits the given version string into an array of uints
+	Return: An array of length 3 containing the numbers in toSplit
+	Param:
+		toSplit = The version string to split, should be of the format X.X.X
+*/
+uint[3] splitVersionString(string toSplit)
+{
+	auto splitString = split(toSplit,".");
+	enforceBugd(splitString.length = 3,"Version string: " ~ toSplit ~ " is not of the proper format");
+	uint[3] parsed;
+	foreach(index,value;splitString) {
+		parsed[index] = value.to!uint;
+	}
+	return parsed;
+}
+
+///
+unittest
+{
+	uint[3] a = [1,2,3];
+	uint[3] b = [14,2,33];
+	assert(equal(splitVersionString("1.2.3")[0..$],a[0..$]));
+	assert(equal(splitVersionString("14.2.33")[0..$],b[0..$]));
+}
+
+
+/**
+	Determines if the first version string is greater than or equal, version strings are of the format X.X.X
+	Return: Is the first version string greater than or equal
+	Params:
+			first = The first version string to compare
+			second = The second version string to compare
+*/
+bool versionStrGreaterEqual(string first,string second)
+{
+	auto firstArr = splitVersionString(first);
+	auto secondArr = splitVersionString(second);
+
+	auto mmatched = mismatch(firstArr[0..$],secondArr[0..$]);
+	return mmatched[0] >= mmatched[1];
+}
+
+///
+unittest
+{
+	assert(versionStrGreaterEqual("1.2.3","1.2.3"));
+	assert(versionStrGreaterEqual("2.2.3","1.2.3"));
+	assert(versionStrGreaterEqual("1.3.3","1.2.3"));
+	assert(versionStrGreaterEqual("1.2.4","1.2.3"));
+	assert(versionStrGreaterEqual("2.2.3","1.2.15"));
+	
+	assert(!versionStrGreaterEqual("1.2.3","2.2.3"));
+	assert(!versionStrGreaterEqual("1.2.3","1.3.3"));
+	assert(!versionStrGreaterEqual("1.2.3","1.2.5"));
+}
+
+
+/**
 	Searches for the entry with the given ID in the database, throws a BugdException if the entry is not found
 	Return: The entry searched for
 	Params:
@@ -91,7 +152,6 @@ DbEntry findEntry(Database db,uint id)
 	}
 	throw new BugdException("Unable to find entry: " ~ id.to!string);
 }
-
 
 /**
 	Finds the maximum id in the given database
@@ -230,8 +290,8 @@ unittest
 
 	assert(line1 == testDbLine1);
 	assert(line2 == testDbLine2);
-	assert(genDbLine(parseDbLine(testDbLine1)) = testDbLine1);
-	assert(genDbLine(parseDbLine(testDbLine2)) = testDbLine2);
+	assert(genDbLine(parseDbLine(testDbLine1)) == testDbLine1);
+	assert(genDbLine(parseDbLine(testDbLine2)) == testDbLine2);
 }
 
 
@@ -255,10 +315,11 @@ File openDbFile(string mode)
 	File databaseFile;
 	try {
 		databaseFile = File(databasePath,mode);
-		auto firstLine = databaseFile.readln();
+		auto firstLine = databaseFile.readln().strip();
 
-		//add "\n" becuaus readline add's one
-		enforceBugd(firstLine == (databaseHeader~"\n"),"Error: " ~ databasePath ~ " is not a dbug database");
+		enforceBugd(firstLine.startsWith(databaseHeader),"Error: " ~ databasePath ~ " is not a dbug database");
+		auto dbVersionString = firstLine[(databaseHeader ~" v").length..$];
+		enforceBugd(versionStrGreaterEqual(oldestCompatible,dbVersionString),"Error: "~ databasePath ~ " is an incompatable version");
 
 	} catch (ErrnoException) {
 		throw new BugdException("Error: unable to open " ~ databasePath);
