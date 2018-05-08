@@ -16,7 +16,7 @@ import std.container.binaryheap;
 static immutable string databaseNamePath = "~/.bugd_database_name";
 
 ///The current version of bugd
-static immutable string versionNum = "1.0.4";
+static immutable string versionNum = "1.0.5";
 
 ///The oldest version of bugd that has compatable databases
 static immutable string oldestCompatible = "1.0.2";
@@ -209,7 +209,7 @@ void initDatabase(string databasePath)
 
 	try {
 		auto databaseFile = File(databasePath,"w+");
-		databaseFile.writeln(databaseHeader);
+		databaseFile.writeln(databaseHeader ~" v"~versionNum);
 	} catch(ErrnoException) {
 		writeln("Error: unable open " ~ databasePath);
 	}
@@ -336,7 +336,7 @@ File openDbFile(string mode)
 
 		enforceBugd(firstLine.startsWith(databaseHeader),"Error: " ~ databasePath ~ " is not a dbug database");
 		auto dbVersionString = firstLine[(databaseHeader ~" v").length..$];
-		enforceBugd(versionStrGreaterEqual(oldestCompatible,dbVersionString),"Error: "~ databasePath ~ " is an incompatable version");
+		enforceBugd(versionStrGreaterEqual(dbVersionString,oldestCompatible),"Error: "~ databasePath ~ " is an incompatable version");
 
 	} catch (ErrnoException) {
 		throw new BugdException("Error: unable to open " ~ databasePath);
