@@ -16,7 +16,7 @@ import std.container.binaryheap;
 static immutable string databaseNamePath = "~/.bugd_database_name";
 
 ///The current version of bugd
-static immutable string versionNum = "1.0.5";
+static immutable string versionNum = "1.0.6";
 
 ///The oldest version of bugd that has compatable databases
 static immutable string oldestCompatible = "1.0.2";
@@ -388,7 +388,7 @@ void updateDbEntry(DbEntry entry,uint id)
 		throw new BugdException("Error: unable to open " ~ dbname);
 	}
 
-	database.writeln(databaseHeader);
+	database.writeln(databaseHeader ~ " v" ~ versionNum);
 	foreach (line;buf) {
 		database.write(line);
 	}
